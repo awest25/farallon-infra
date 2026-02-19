@@ -1,0 +1,51 @@
+#cloud-config
+users:
+  - name: ubuntu
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID/qtWJQaMIHUrK5YRx9X1ggsmOX9sSsWp8cZuJUV0CT alex-farallon
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - docker.io
+  - docker-compose-v2
+
+write_files:
+  - path: /opt/wireguard/docker-compose.yml
+    content: |
+      services:
+        wireguard:
+          image: lscr.io/linuxserver/wireguard:latest
+          container_name: wireguard
+          cap_add:
+            - NET_ADMIN
+            - SYS_MODULE
+          environment:
+            - PUID=1000
+            - PGID=1000
+            - TZ=Etc/UTC
+            - SERVERURL=${wireguard_server_url}
+            - SERVERPORT=${wireguard_server_port}
+            - PEERS=${wireguard_peers}
+            - PEERDNS=auto
+            - INTERNAL_SUBNET=10.13.13.0
+            - ALLOWEDIPS=0.0.0.0/0
+            - LOG_CONFS=true
+          volumes:
+            - ./config:/config
+            - /lib/modules:/lib/modules # Important for kernel modules
+          ports:
+            - 51820:51820/udp
+          sysctls:
+            - net.ipv4.conf.all.src_valid_mark=1
+            - net.ipv4.ip_forward=1
+          restart: unless-stopped
+
+runcmd:
+  # Enable Docker service
+  - systemctl enable --now docker
+  # Start Wireguard via Docker Compose
+  - [ sh, -c, "cd /opt/wireguard && docker compose up -d" ]
