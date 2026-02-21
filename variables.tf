@@ -106,5 +106,4 @@ variable "npm_admin_password" {
   description = "Password for the Nginx Proxy Manager admin panel"
   type        = string
   sensitive   = true
-  default     = "***REMOVED***"
 }

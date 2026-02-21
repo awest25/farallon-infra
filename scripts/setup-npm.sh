@@ -4,12 +4,11 @@
 # ==============================================================================
 # This script is rendered by Terraform's templatefile() and executed inside
 # the reverse-proxy LXC (101). It:
-#   1. Resets NPM to a clean state (drops volume, restarts)
-#   2. Creates the admin user via the API (NPM v2.14+)
-#   3. Sets the admin password via direct DB insertion (bcrypt hash)
-#   4. Creates all proxy hosts from Terraform config
+#   1. Checks if NPM is already configured (non-destructive)
+#   2. Creates the admin user if this is a fresh install
+#   3. Ensures all proxy hosts exist (skips existing ones)
 #
-# This is fully idempotent — Terraform is the source of truth for proxy hosts.
+# Safe to re-run — will not reset an already-configured NPM instance.
 set -euo pipefail
 
 NPM_URL="http://localhost:81"
@@ -28,57 +27,58 @@ for i in $(seq 1 60); do
   sleep 2
 done
 
-# --- Reset to factory (idempotent — Terraform owns proxy host state) ----------
-echo "Resetting NPM to clean state..."
-cd /opt/reverse-proxy
-docker compose down
-docker volume rm reverse-proxy_npm_data reverse-proxy_npm_letsencrypt 2>/dev/null || true
-docker compose up -d
-sleep 20
-
-# Wait until API responds
-for i in $(seq 1 60); do
-  if curl -sf "$NPM_URL/api/" >/dev/null 2>&1; then
-    break
-  fi
-  sleep 2
-done
-
-# --- Create initial admin user (NPM v2.14+ setup flow) -----------------------
-echo "Creating admin user..."
-curl -sf "$NPM_URL/api/users" -X POST \
+# --- Authenticate (or set up fresh install) -----------------------------------
+TOKEN=$(curl -sf "$NPM_URL/api/tokens" -X POST \
   -H "Content-Type: application/json" \
-  -d '{"name":"Admin","email":"${admin_email}","nickname":"Admin"}' > /dev/null
+  -d '{"identity":"${admin_email}","secret":"${admin_password}"}' 2>/dev/null | jq -r '.token // empty' 2>/dev/null || true)
 
-# --- Set password via DB (NPM v2.14+ doesn't accept 'secret' in user create) --
-echo "Setting admin password..."
-DBPATH=$(docker inspect npm --format='{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}')
-HASH=$(docker exec npm node -e "
+if [ -z "$TOKEN" ]; then
+  echo "First-time setup: creating admin user..."
+
+  # Create admin user (NPM v2.14+ setup flow)
+  curl -sf "$NPM_URL/api/users" -X POST \
+    -H "Content-Type: application/json" \
+    -d '{"name":"Admin","email":"${admin_email}","nickname":"Admin"}' > /dev/null
+
+  # Set password via DB (NPM v2.14+ doesn't accept 'secret' in user create)
+  DBPATH=$(docker inspect npm --format='{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}')
+  HASH=$(docker exec npm node -e "
 const bcrypt = require('bcrypt');
 const hash = bcrypt.hashSync('${admin_password}', 13);
 process.stdout.write(hash);
 ")
-sqlite3 "$DBPATH/database.sqlite" \
-  "INSERT INTO auth (user_id, type, secret, meta, created_on, modified_on) VALUES (1, 'password', '$HASH', '{}', datetime('now'), datetime('now'));"
+  sqlite3 "$DBPATH/database.sqlite" \
+    "INSERT INTO auth (user_id, type, secret, meta, created_on, modified_on) VALUES (1, 'password', '$HASH', '{}', datetime('now'), datetime('now'));"
 
-# --- Login with configured credentials ----------------------------------------
-echo "Logging in..."
-TOKEN=$(curl -sf "$NPM_URL/api/tokens" -X POST \
-  -H "Content-Type: application/json" \
-  -d '{"identity":"${admin_email}","secret":"${admin_password}"}' | jq -r '.token // empty')
+  # Login with the new credentials
+  TOKEN=$(curl -sf "$NPM_URL/api/tokens" -X POST \
+    -H "Content-Type: application/json" \
+    -d '{"identity":"${admin_email}","secret":"${admin_password}"}' | jq -r '.token // empty')
 
-if [ -z "$TOKEN" ]; then
-  echo "ERROR: Login failed"
-  exit 1
+  if [ -z "$TOKEN" ]; then
+    echo "ERROR: Login failed after user creation"
+    exit 1
+  fi
+  echo "Admin user created successfully."
+else
+  echo "NPM already configured, skipping user setup."
 fi
 
-# --- Create proxy hosts -------------------------------------------------------
+# --- Create proxy hosts (skip existing) ---------------------------------------
+EXISTING=$(curl -sf "$NPM_URL/api/nginx/proxy-hosts" \
+  -H "Authorization: Bearer $TOKEN" | jq -r '.[].domain_names[0]' 2>/dev/null || true)
+
 create_proxy() {
   local fqdn="$1"
   local host="$2"
   local port="$3"
 
-  echo "  $fqdn → $host:$port"
+  if echo "$EXISTING" | grep -qx "$fqdn"; then
+    echo "  $fqdn (exists, skipping)"
+    return
+  fi
+
+  echo "  $fqdn -> $host:$port"
   curl -sf "$NPM_URL/api/nginx/proxy-hosts" \
     -H "Authorization: Bearer $TOKEN" \
     -H "Content-Type: application/json" \
@@ -102,7 +102,7 @@ create_proxy() {
     }" >/dev/null
 }
 
-echo "Creating proxy hosts..."
+echo "Ensuring proxy hosts exist..."
 create_proxy "jellyfin.${domain}"  "${jellyfin_ip}"     8096
 create_proxy "requests.${domain}"  "${acquisition_ip}"  5055
 create_proxy "sonarr.${domain}"    "${acquisition_ip}"  8989
@@ -113,4 +113,3 @@ create_proxy "qbit.${domain}"      "${acquisition_ip}"  8080
 echo ""
 echo "=== NPM Setup Complete ==="
 echo "Admin: ${admin_email}"
-echo "Proxy hosts created: 6"

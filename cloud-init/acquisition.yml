@@ -37,7 +37,7 @@ write_files:
             # qBittorrent WebUI — exposed through Gluetun
             - "8080:8080"
           volumes:
-            - gluetun_data:/gluetun
+            - /opt/acquisition/appdata/gluetun:/gluetun
           restart: unless-stopped
 
         # ======================================================================
@@ -55,7 +55,7 @@ write_files:
             - TZ=America/Los_Angeles
             - WEBUI_PORT=8080
           volumes:
-            - qbittorrent_config:/config
+            - /opt/acquisition/appdata/qbittorrent:/config
             - /mnt/storage/torrents:/data/torrents
           restart: unless-stopped
 
@@ -70,7 +70,7 @@ write_files:
             - PGID=1000
             - TZ=America/Los_Angeles
           volumes:
-            - prowlarr_config:/config
+            - /opt/acquisition/appdata/prowlarr:/config
           ports:
             - "9696:9696"
           restart: unless-stopped
@@ -86,7 +86,7 @@ write_files:
             - PGID=1000
             - TZ=America/Los_Angeles
           volumes:
-            - sonarr_config:/config
+            - /opt/acquisition/appdata/sonarr:/config
             - /mnt/storage:/data
           ports:
             - "8989:8989"
@@ -103,7 +103,7 @@ write_files:
             - PGID=1000
             - TZ=America/Los_Angeles
           volumes:
-            - radarr_config:/config
+            - /opt/acquisition/appdata/radarr:/config
             - /mnt/storage:/data
           ports:
             - "7878:7878"
@@ -120,28 +120,53 @@ write_files:
             - PGID=1000
             - TZ=America/Los_Angeles
           volumes:
-            - overseerr_config:/config
+            - /opt/acquisition/appdata/overseerr:/config
           ports:
             - "5055:5055"
           restart: unless-stopped
 
-      volumes:
-        gluetun_data:
-        qbittorrent_config:
-        prowlarr_config:
-        sonarr_config:
-        radarr_config:
-        overseerr_config:
+        # ======================================================================
+        # Recyclarr — syncs TRaSH Guide quality profiles to Sonarr/Radarr
+        # ======================================================================
+        recyclarr:
+          image: ghcr.io/recyclarr/recyclarr:latest
+          container_name: recyclarr
+          environment:
+            - TZ=America/Los_Angeles
+            - RECYCLARR_CREATE_CONFIG=true
+          volumes:
+            - /opt/acquisition/appdata/recyclarr:/config
+          restart: unless-stopped
+
+  - path: /opt/acquisition/backup.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      BACKUP_DIR=/mnt/storage/backups
+      APPDATA_DIR=/opt/acquisition/appdata
+      TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+      mkdir -p "$BACKUP_DIR"
+      tar czf "$BACKUP_DIR/acquisition-$TIMESTAMP.tar.gz" -C "$APPDATA_DIR" .
+      # Keep last 7 backups
+      ls -t "$BACKUP_DIR"/acquisition-*.tar.gz 2>/dev/null | tail -n +8 | xargs -r rm
 
 runcmd:
   # Enable Docker
   - systemctl enable --now docker
+
+  # Create appdata directories for bind mounts
+  - mkdir -p /opt/acquisition/appdata/{gluetun,qbittorrent,prowlarr,sonarr,radarr,overseerr,recyclarr}
 
   # Create the shared storage directory structure
   - mkdir -p /mnt/storage/media/movies
   - mkdir -p /mnt/storage/media/shows
   - mkdir -p /mnt/storage/torrents/automated
   - mkdir -p /mnt/storage/torrents/manual
+  - mkdir -p /mnt/storage/backups
+
+  # Install daily backup cron (3:00 AM)
+  - echo "0 3 * * * root /opt/acquisition/backup.sh" > /etc/cron.d/acquisition-backup
 
   # Mount NFS from Proxmox host (ensure NFS is exported on the host)
   # Uncomment and adjust once NFS is configured on your Proxmox host:

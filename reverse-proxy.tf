@@ -99,7 +99,7 @@ resource "null_resource" "reverse_proxy_setup" {
       "pct exec ${proxmox_virtual_environment_container.reverse_proxy.vm_id} -- bash -c 'apt-get update && apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin'",
 
       # Write the docker-compose file
-      "pct exec ${proxmox_virtual_environment_container.reverse_proxy.vm_id} -- bash -c 'mkdir -p /opt/reverse-proxy'",
+      "pct exec ${proxmox_virtual_environment_container.reverse_proxy.vm_id} -- bash -c 'mkdir -p /opt/reverse-proxy/data/{npm,letsencrypt,crowdsec/config,crowdsec/data}'",
       <<-EOT
       pct exec ${proxmox_virtual_environment_container.reverse_proxy.vm_id} -- bash -c 'cat > /opt/reverse-proxy/docker-compose.yml << "COMPOSE"
 services:
@@ -112,8 +112,8 @@ services:
       - "443:443"
       - "81:81"
     volumes:
-      - npm_data:/data
-      - npm_letsencrypt:/etc/letsencrypt
+      - /opt/reverse-proxy/data/npm:/data
+      - /opt/reverse-proxy/data/letsencrypt:/etc/letsencrypt
       - /var/log/npm:/data/logs
 
   crowdsec:
@@ -123,15 +123,9 @@ services:
     environment:
       - COLLECTIONS=crowdsecurity/nginx-proxy-manager
     volumes:
-      - crowdsec_config:/etc/crowdsec
-      - crowdsec_data:/var/lib/crowdsec/data
+      - /opt/reverse-proxy/data/crowdsec/config:/etc/crowdsec
+      - /opt/reverse-proxy/data/crowdsec/data:/var/lib/crowdsec/data
       - /var/log/npm:/var/log/npm:ro
-
-volumes:
-  npm_data:
-  npm_letsencrypt:
-  crowdsec_config:
-  crowdsec_data:
 COMPOSE'
       EOT
       ,
@@ -143,8 +137,8 @@ COMPOSE'
 }
 
 # --- Automate NPM proxy hosts via API ----------------------------------------
-# Resets NPM to a clean state, sets the admin password, and creates all proxy
-# hosts declaratively. No UI interaction needed.
+# Non-destructive: checks if NPM is already configured before setting up.
+# Creates admin user on fresh installs, ensures all proxy hosts exist.
 resource "null_resource" "npm_proxy_setup" {
   depends_on = [null_resource.reverse_proxy_setup]
 

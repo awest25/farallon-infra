@@ -75,6 +75,10 @@ resource "proxmox_virtual_environment_vm" "acquisition" {
   network_device {
     bridge = "vmbr0"
   }
+
+  lifecycle {
+    ignore_changes = [disk]
+  }
 }
 
 # --- Post-provision: inject Mullvad creds, mount NFS, start stack -------------
@@ -114,6 +118,11 @@ resource "null_resource" "acquisition_setup" {
 
       # Create directory structure if not already present
       "sudo mkdir -p /mnt/storage/media/movies /mnt/storage/media/shows /mnt/storage/torrents/automated /mnt/storage/torrents/manual",
+
+      # --- Restore config from backup if available ---------------------------------
+      "sudo mkdir -p /opt/acquisition/appdata",
+      "sudo mkdir -p /mnt/storage/backups",
+      "LATEST=$(ls -t /mnt/storage/backups/acquisition-*.tar.gz 2>/dev/null | head -1); if [ -n \"$LATEST\" ]; then echo \"Restoring from: $LATEST\"; sudo tar xzf \"$LATEST\" -C /opt/acquisition/appdata/; fi",
 
       # --- (Re)start the Docker stack ---------------------------------------------
       "cd /opt/acquisition && sudo docker compose down 2>/dev/null || true",
