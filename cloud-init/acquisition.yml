@@ -1,0 +1,152 @@
+#cloud-config
+users:
+  - name: ubuntu
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID/qtWJQaMIHUrK5YRx9X1ggsmOX9sSsWp8cZuJUV0CT alex-farallon
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - docker.io
+  - docker-compose-v2
+  - nfs-common
+
+write_files:
+  - path: /opt/acquisition/docker-compose.yml
+    content: |
+      services:
+        # ======================================================================
+        # VPN Gateway — all torrent traffic exits through Mullvad
+        # ======================================================================
+        gluetun:
+          image: qmcgaw/gluetun:latest
+          container_name: gluetun
+          cap_add:
+            - NET_ADMIN
+          devices:
+            - /dev/net/tun:/dev/net/tun
+          environment:
+            - VPN_SERVICE_PROVIDER=mullvad
+            - VPN_TYPE=wireguard
+            - WIREGUARD_PRIVATE_KEY=${MULLVAD_WIREGUARD_PRIVATE_KEY}
+            - WIREGUARD_ADDRESSES=${MULLVAD_WIREGUARD_ADDRESSES}
+          ports:
+            # qBittorrent WebUI — exposed through Gluetun
+            - "8080:8080"
+          volumes:
+            - gluetun_data:/gluetun
+          restart: unless-stopped
+
+        # ======================================================================
+        # qBittorrent — bound to Gluetun's network (kill-switch)
+        # ======================================================================
+        qbittorrent:
+          image: lscr.io/linuxserver/qbittorrent:latest
+          container_name: qbittorrent
+          network_mode: "service:gluetun"
+          depends_on:
+            - gluetun
+          environment:
+            - PUID=1000
+            - PGID=1000
+            - TZ=America/Los_Angeles
+            - WEBUI_PORT=8080
+          volumes:
+            - qbittorrent_config:/config
+            - /mnt/storage/torrents:/data/torrents
+          restart: unless-stopped
+
+        # ======================================================================
+        # Prowlarr — indexer manager (syncs to Sonarr + Radarr)
+        # ======================================================================
+        prowlarr:
+          image: lscr.io/linuxserver/prowlarr:latest
+          container_name: prowlarr
+          environment:
+            - PUID=1000
+            - PGID=1000
+            - TZ=America/Los_Angeles
+          volumes:
+            - prowlarr_config:/config
+          ports:
+            - "9696:9696"
+          restart: unless-stopped
+
+        # ======================================================================
+        # Sonarr — TV show manager
+        # ======================================================================
+        sonarr:
+          image: lscr.io/linuxserver/sonarr:latest
+          container_name: sonarr
+          environment:
+            - PUID=1000
+            - PGID=1000
+            - TZ=America/Los_Angeles
+          volumes:
+            - sonarr_config:/config
+            - /mnt/storage:/data
+          ports:
+            - "8989:8989"
+          restart: unless-stopped
+
+        # ======================================================================
+        # Radarr — movie manager
+        # ======================================================================
+        radarr:
+          image: lscr.io/linuxserver/radarr:latest
+          container_name: radarr
+          environment:
+            - PUID=1000
+            - PGID=1000
+            - TZ=America/Los_Angeles
+          volumes:
+            - radarr_config:/config
+            - /mnt/storage:/data
+          ports:
+            - "7878:7878"
+          restart: unless-stopped
+
+        # ======================================================================
+        # Overseerr — request portal for friends/family
+        # ======================================================================
+        overseerr:
+          image: lscr.io/linuxserver/overseerr:latest
+          container_name: overseerr
+          environment:
+            - PUID=1000
+            - PGID=1000
+            - TZ=America/Los_Angeles
+          volumes:
+            - overseerr_config:/config
+          ports:
+            - "5055:5055"
+          restart: unless-stopped
+
+      volumes:
+        gluetun_data:
+        qbittorrent_config:
+        prowlarr_config:
+        sonarr_config:
+        radarr_config:
+        overseerr_config:
+
+runcmd:
+  # Enable Docker
+  - systemctl enable --now docker
+
+  # Create the shared storage directory structure
+  - mkdir -p /mnt/storage/media/movies
+  - mkdir -p /mnt/storage/media/shows
+  - mkdir -p /mnt/storage/torrents/automated
+  - mkdir -p /mnt/storage/torrents/manual
+
+  # Mount NFS from Proxmox host (ensure NFS is exported on the host)
+  # Uncomment and adjust once NFS is configured on your Proxmox host:
+  # - echo "${PROXMOX_HOST_IP}:${STORAGE_HOST_PATH} /mnt/storage nfs defaults,_netdev 0 0" >> /etc/fstab
+  # - mount -a
+
+  # Start the acquisition stack
+  - [ sh, -c, "cd /opt/acquisition && docker compose up -d" ]
