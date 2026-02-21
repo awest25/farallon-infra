@@ -80,17 +80,20 @@ resource "null_resource" "reverse_proxy_setup" {
   }
 
   connection {
-    type  = "ssh"
-    host  = var.proxmox_host_ip
-    user  = "root"
-    agent = true
+    type         = "ssh"
+    host         = var.proxmox_host_ip
+    user         = "root"
+    agent        = true
+    bastion_host = "98.51.110.156"
+    bastion_port = 52222
+    bastion_user = "root"
   }
 
   # Wait for container to fully start
   provisioner "remote-exec" {
     inline = [
       "sleep 5",
-      "pct exec ${proxmox_virtual_environment_container.reverse_proxy.vm_id} -- bash -c 'apt-get update && apt-get install -y curl ca-certificates gnupg'",
+      "pct exec ${proxmox_virtual_environment_container.reverse_proxy.vm_id} -- bash -c 'apt-get update && apt-get install -y curl ca-certificates gnupg sqlite3'",
 
       # Install Docker (official method)
       "pct exec ${proxmox_virtual_environment_container.reverse_proxy.vm_id} -- bash -c 'install -m 0755 -d /etc/apt/keyrings'",
@@ -151,10 +154,13 @@ resource "null_resource" "npm_proxy_setup" {
   }
 
   connection {
-    type  = "ssh"
-    host  = var.proxmox_host_ip
-    user  = "root"
-    agent = true
+    type         = "ssh"
+    host         = var.proxmox_host_ip
+    user         = "root"
+    agent        = true
+    bastion_host = "98.51.110.156"
+    bastion_port = 52222
+    bastion_user = "root"
   }
 
   # Upload the rendered setup script into the LXC

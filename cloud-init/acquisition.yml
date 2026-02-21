@@ -4,7 +4,7 @@ users:
     sudo: ALL=(ALL) NOPASSWD:ALL
     shell: /bin/bash
     ssh_authorized_keys:
-      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID/qtWJQaMIHUrK5YRx9X1ggsmOX9sSsWp8cZuJUV0CT alex-farallon
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDSkR3zmqmYYeuAZCBXT7Deus/bdL85xbUW5HXV5yUyK alexander.west@viasat.com
 
 package_update: true
 package_upgrade: true

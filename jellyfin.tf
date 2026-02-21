@@ -79,10 +79,13 @@ resource "null_resource" "jellyfin_setup" {
   }
 
   connection {
-    type  = "ssh"
-    host  = var.proxmox_host_ip
-    user  = "root"
-    agent = true
+    type         = "ssh"
+    host         = var.proxmox_host_ip
+    user         = "root"
+    agent        = true
+    bastion_host = "98.51.110.156"
+    bastion_port = 52222
+    bastion_user = "root"
   }
 
   provisioner "remote-exec" {

@@ -97,10 +97,13 @@ resource "null_resource" "acquisition_setup" {
   }
 
   connection {
-    type  = "ssh"
-    host  = var.acquisition_ip
-    user  = "ubuntu"
-    agent = true
+    type         = "ssh"
+    host         = var.acquisition_ip
+    user         = "ubuntu"
+    agent        = true
+    bastion_host = "98.51.110.156"
+    bastion_port = 52222
+    bastion_user = "root"
   }
 
   provisioner "remote-exec" {
