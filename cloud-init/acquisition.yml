@@ -4,6 +4,7 @@ users:
     sudo: ALL=(ALL) NOPASSWD:ALL
     shell: /bin/bash
     ssh_authorized_keys:
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID/qtWJQaMIHUrK5YRx9X1ggsmOX9sSsWp8cZuJUV0CT alex-farallon
       - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDSkR3zmqmYYeuAZCBXT7Deus/bdL85xbUW5HXV5yUyK alexander.west@viasat.com
 
 package_update: true
@@ -110,17 +111,17 @@ write_files:
           restart: unless-stopped
 
         # ======================================================================
-        # Overseerr — request portal for friends/family
+        # Jellyseerr — request portal for friends/family (Jellyfin-compatible)
         # ======================================================================
-        overseerr:
-          image: lscr.io/linuxserver/overseerr:latest
-          container_name: overseerr
+        jellyseerr:
+          image: fallenbagel/jellyseerr:latest
+          container_name: jellyseerr
           environment:
             - PUID=1000
             - PGID=1000
             - TZ=America/Los_Angeles
           volumes:
-            - /opt/acquisition/appdata/overseerr:/config
+            - /opt/acquisition/appdata/jellyseerr:/app/config
           ports:
             - "5055:5055"
           restart: unless-stopped
@@ -156,7 +157,7 @@ runcmd:
   - systemctl enable --now docker
 
   # Create appdata directories for bind mounts
-  - mkdir -p /opt/acquisition/appdata/{gluetun,qbittorrent,prowlarr,sonarr,radarr,overseerr,recyclarr}
+  - mkdir -p /opt/acquisition/appdata/{gluetun,qbittorrent,prowlarr,sonarr,radarr,jellyseerr,recyclarr}
 
   # Create the shared storage directory structure
   - mkdir -p /mnt/storage/media/movies

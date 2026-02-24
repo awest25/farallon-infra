@@ -69,6 +69,14 @@ resource "null_resource" "nfs_server_setup" {
       "grep -q '${var.storage_host_path}.*10.0.0.0/24' /etc/exports || echo '${var.storage_host_path} 10.0.0.0/24(rw,sync,no_subtree_check,no_root_squash)' >> /etc/exports",
       "exportfs -ra",
       "systemctl enable --now nfs-kernel-server",
+
+      # Create shared directories with correct ownership
+      # Owner 100103 = Jellyfin user inside unprivileged LXC (UID 103 + 100000 offset)
+      # Group 1000 = container PUID (Sonarr/Radarr/qBit)
+      # 775 = both Jellyfin (owner) and arr stack (group) can read/write
+      "mkdir -p ${var.storage_host_path}/{media/movies,media/shows,torrents/automated,torrents/manual,backups}",
+      "chown -R 100103:1000 ${var.storage_host_path}/media ${var.storage_host_path}/torrents",
+      "chmod -R 775 ${var.storage_host_path}/media ${var.storage_host_path}/torrents",
     ]
   }
 }

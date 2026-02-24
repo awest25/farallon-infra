@@ -1,16 +1,11 @@
 # ==============================================================================
 # Reverse Proxy — Nginx Proxy Manager + CrowdSec
 # ==============================================================================
-# This LXC sits on DHCP so your router can port-forward 80/443 to it.
-# It terminates SSL via Let's Encrypt and routes subdomains to internal services.
+# Terminates SSL via Let's Encrypt and routes subdomains to internal services.
 # CrowdSec reads NPM access logs and drops malicious connections.
 #
-# After `tofu apply`, configure your router to port-forward:
-#   TCP 80  → this container's DHCP IP
-#   TCP 443 → this container's DHCP IP
-#
-# NPM admin panel: http://<container-ip>:81
-#   Default login: admin@example.com / changeme
+# Router port-forward: TCP 80 + 443 → 10.0.0.136
+# NPM admin panel: http://10.0.0.136:81
 
 resource "proxmox_virtual_environment_container" "reverse_proxy" {
   description = "Nginx Proxy Manager + CrowdSec reverse proxy"
@@ -36,12 +31,13 @@ resource "proxmox_virtual_environment_container" "reverse_proxy" {
 
     ip_config {
       ipv4 {
-        address = "dhcp"
+        address = "${var.reverse_proxy_ip}/${var.network_cidr}"
+        gateway = var.network_gateway
       }
     }
 
     user_account {
-      keys     = [var.ssh_public_key]
+      keys     = var.ssh_public_keys
       password = "changeme" # Only used for console access; SSH key is primary
     }
   }
@@ -114,6 +110,7 @@ services:
       - "80:80"
       - "443:443"
       - "81:81"
+    env_file: .env
     volumes:
       - /opt/reverse-proxy/data/npm:/data
       - /opt/reverse-proxy/data/letsencrypt:/etc/letsencrypt
@@ -133,15 +130,21 @@ COMPOSE'
       EOT
       ,
 
+      # Write .env for NPM admin setup (INITIAL_ADMIN_* env vars create admin on first boot)
+      "printf 'INITIAL_ADMIN_EMAIL=admin@${var.domain}\\nINITIAL_ADMIN_PASSWORD=%s\\n' '${var.npm_admin_password}' > /tmp/npm.env",
+      "pct push ${proxmox_virtual_environment_container.reverse_proxy.vm_id} /tmp/npm.env /opt/reverse-proxy/.env",
+      "rm -f /tmp/npm.env",
+
       # Start the stack
       "pct exec ${proxmox_virtual_environment_container.reverse_proxy.vm_id} -- bash -c 'cd /opt/reverse-proxy && docker compose up -d'",
     ]
   }
 }
 
-# --- Automate NPM proxy hosts via API ----------------------------------------
-# Non-destructive: checks if NPM is already configured before setting up.
-# Creates admin user on fresh installs, ensures all proxy hosts exist.
+# --- Automate NPM proxy hosts + SSL via API -----------------------------------
+# Non-destructive: skips existing proxy hosts and certs.
+# Admin user is created by NPM itself via INITIAL_ADMIN_* env vars.
+# Requests Let's Encrypt certs for all proxy hosts (HTTP-01 challenge).
 resource "null_resource" "npm_proxy_setup" {
   depends_on = [null_resource.reverse_proxy_setup]
 

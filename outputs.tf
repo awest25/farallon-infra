@@ -7,9 +7,9 @@ output "wireguard_ip" {
   value       = var.wireguard_ip
 }
 
-output "reverse_proxy_id" {
-  description = "Reverse proxy LXC container ID (check DHCP lease on your router for IP)"
-  value       = proxmox_virtual_environment_container.reverse_proxy.vm_id
+output "reverse_proxy_ip" {
+  description = "Reverse proxy LXC IP"
+  value       = var.reverse_proxy_ip
 }
 
 output "jellyfin_ip" {
@@ -26,7 +26,7 @@ output "service_urls" {
   description = "Direct LAN URLs for all services"
   value = {
     jellyfin    = "http://${var.jellyfin_ip}:8096"
-    overseerr   = "http://${var.acquisition_ip}:5055"
+    jellyseerr   = "http://${var.acquisition_ip}:5055"
     sonarr      = "http://${var.acquisition_ip}:8989"
     radarr      = "http://${var.acquisition_ip}:7878"
     prowlarr    = "http://${var.acquisition_ip}:9696"
@@ -48,5 +48,5 @@ output "proxy_hosts" {
 
 output "npm_admin" {
   description = "NPM admin panel access"
-  value       = "Login: admin@${var.domain} (on the reverse proxy's DHCP IP, port 81)"
+  value       = "Login: admin@${var.domain} at http://${var.reverse_proxy_ip}:81"
 }

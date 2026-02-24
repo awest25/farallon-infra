@@ -5,6 +5,7 @@ users:
     shell: /bin/bash
     ssh_authorized_keys:
       - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID/qtWJQaMIHUrK5YRx9X1ggsmOX9sSsWp8cZuJUV0CT alex-farallon
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDSkR3zmqmYYeuAZCBXT7Deus/bdL85xbUW5HXV5yUyK alexander.west@viasat.com
 
 package_update: true
 package_upgrade: true
@@ -12,6 +13,7 @@ package_upgrade: true
 packages:
   - docker.io
   - docker-compose-v2
+  - nfs-common
 
 write_files:
   - path: /opt/wireguard/docker-compose.yml
@@ -43,6 +45,19 @@ write_files:
             - net.ipv4.conf.all.src_valid_mark=1
             - net.ipv4.ip_forward=1
           restart: unless-stopped
+
+  - path: /opt/wireguard/backup.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      BACKUP_DIR=/mnt/storage/backups
+      CONFIG_DIR=/opt/wireguard/config
+      TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+      mkdir -p "$BACKUP_DIR"
+      tar czf "$BACKUP_DIR/wireguard-$TIMESTAMP.tar.gz" -C "$CONFIG_DIR" .
+      # Keep last 7 backups
+      ls -t "$BACKUP_DIR"/wireguard-*.tar.gz 2>/dev/null | tail -n +8 | xargs -r rm
 
 runcmd:
   # Enable Docker service

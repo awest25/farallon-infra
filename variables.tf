@@ -30,9 +30,9 @@ variable "proxmox_host_ip" {
 # ==============================================================================
 # SSH
 # ==============================================================================
-variable "ssh_public_key" {
-  description = "SSH public key for VM/LXC access"
-  type        = string
+variable "ssh_public_keys" {
+  description = "SSH public keys for VM/LXC access"
+  type        = list(string)
 }
 
 # ==============================================================================
@@ -66,6 +66,12 @@ variable "acquisition_ip" {
   description = "Static IP for the acquisition (Docker) VM"
   type        = string
   default     = "10.0.0.34"
+}
+
+variable "reverse_proxy_ip" {
+  description = "Static IP for the reverse proxy LXC"
+  type        = string
+  default     = "10.0.0.136"
 }
 
 # ==============================================================================

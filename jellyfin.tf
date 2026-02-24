@@ -35,7 +35,7 @@ resource "proxmox_virtual_environment_container" "jellyfin" {
     }
 
     user_account {
-      keys     = [var.ssh_public_key]
+      keys     = var.ssh_public_keys
       password = "changeme"
     }
   }
