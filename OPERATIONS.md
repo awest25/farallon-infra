@@ -38,6 +38,7 @@ graph TB
             RADARR["Radarr :7878"]
             OVERSEERR["Jellyseerr :5055"]
             RECYCLARR["Recyclarr"]
+            FLARESOLVERR["FlareSolverr :8191"]
             ACQCRON["Backup cron 3AM"]
         end
     end
@@ -60,6 +61,7 @@ graph TB
 
     PROWLARR -->|"syncs indexers"| SONARR
     PROWLARR -->|"syncs indexers"| RADARR
+    PROWLARR -->|"Cloudflare bypass"| FLARESOLVERR
     SONARR -->|"sends grabs"| QBIT
     RADARR -->|"sends grabs"| QBIT
     RECYCLARR -.->|"TRaSH profiles"| SONARR
@@ -95,7 +97,7 @@ graph TB
 | WireGuard          | VM   | 10.0.0.116   | 51820/udp                |
 | Reverse Proxy      | LXC  | 10.0.0.136   | 80, 443, 81 (NPM admin) |
 | Jellyfin           | LXC  | 10.0.0.33    | 8096                     |
-| Acquisition        | VM   | 10.0.0.34    | 8989, 7878, 9696, 8080, 5055 |
+| Acquisition        | VM   | 10.0.0.34    | 8989, 7878, 9696, 8080, 5055, 8191 |
 
 Public IP: 98.51.110.156
 Router port-forwards: TCP 80+443 to 10.0.0.136, UDP 51820 to 10.0.0.116, TCP 52222 to 10.0.0.32:22
@@ -112,9 +114,10 @@ Router port-forwards: TCP 80+443 to 10.0.0.136, UDP 51820 to 10.0.0.116, TCP 522
 | Jellyseerr    | jellyseerr        | Request portal for friends/family.            |
 | Recyclarr    | recyclarr        | Syncs TRaSH Guide quality profiles to Sonarr/Radarr daily. |
 | NPM          | npm              | Nginx Proxy Manager. SSL termination, subdomain routing. Admin created via `INITIAL_ADMIN_*` env vars from `.env` file. |
+| FlareSolverr | flaresolverr     | Cloudflare bypass proxy for Prowlarr indexers. Linked via tags. |
 | CrowdSec     | crowdsec         | Reads NPM access logs, blocks malicious IPs. |
 | Jellyfin     | (native in LXC)  | Media server with GPU transcoding.           |
-| WireGuard    | wireguard        | Personal VPN for remote access into the LAN. |
+| WireGuard    | wireguard        | Personal VPN (network_mode: host). Remote LAN access. |
 
 ### Proxy Hosts (NPM)
 
@@ -313,10 +316,10 @@ Jellyfin runs natively (not Docker). Storage bind-mounted from Proxmox host at `
 ## Remaining TODO
 
 - [x] SSL certificates on all proxy hosts (automated via setup-npm.sh)
+- [x] Wire up Prowlarr > Sonarr/Radarr > qBittorrent > Jellyseerr
+- [x] Configure Recyclarr with API keys and quality profiles (WEB-1080p for Sonarr, Remux + WEB 1080p for Radarr)
 - [ ] Change NPM admin password
 - [ ] Change qBittorrent default password
 - [ ] Enable auth on Sonarr/Radarr/Prowlarr
-- [ ] Wire up Prowlarr > Sonarr/Radarr > qBittorrent > Jellyseerr
-- [ ] Configure Recyclarr with API keys and quality profiles
 - [ ] Restrict Sonarr/Radarr/Prowlarr/qBit proxy hosts to VPN-only access
 - [ ] CrowdSec bouncer integration

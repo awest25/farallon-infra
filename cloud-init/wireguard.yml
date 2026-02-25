@@ -29,21 +29,16 @@ write_files:
             - PUID=1000
             - PGID=1000
             - TZ=Etc/UTC
-            # - SERVERURL=wireguard.domain.com # Optional
-            # - SERVERPORT=51820 # Optional
-            - PEERS=1 # Number of peers to generate
-            - PEERDNS=auto # Optional
-            - INTERNAL_SUBNET=10.13.13.0 # Optional
-            - ALLOWEDIPS=0.0.0.0/0 # Optional
-            - LOG_CONFS=true # Optional
+            - SERVERURL=98.51.110.156
+            - PEERS=1
+            - PEERDNS=1.1.1.1
+            - INTERNAL_SUBNET=10.13.13.0
+            - ALLOWEDIPS=0.0.0.0/0
+            - LOG_CONFS=true
           volumes:
             - ./config:/config
-            - /lib/modules:/lib/modules # Important for kernel modules
-          ports:
-            - 51820:51820/udp
-          sysctls:
-            - net.ipv4.conf.all.src_valid_mark=1
-            - net.ipv4.ip_forward=1
+            - /lib/modules:/lib/modules
+          network_mode: host
           restart: unless-stopped
 
   - path: /opt/wireguard/backup.sh
@@ -62,5 +57,9 @@ write_files:
 runcmd:
   # Enable Docker service
   - systemctl enable --now docker
+  # Set sysctls required by WireGuard (can't be set in container with host networking)
+  - sysctl -w net.ipv4.ip_forward=1 net.ipv4.conf.all.src_valid_mark=1
+  - echo "net.ipv4.ip_forward=1" >> /etc/sysctl.d/99-wireguard.conf
+  - echo "net.ipv4.conf.all.src_valid_mark=1" >> /etc/sysctl.d/99-wireguard.conf
   # Start Wireguard via Docker Compose
   - [ sh, -c, "cd /opt/wireguard && docker compose up -d" ]

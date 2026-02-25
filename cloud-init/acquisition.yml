@@ -139,6 +139,19 @@ write_files:
             - /opt/acquisition/appdata/recyclarr:/config
           restart: unless-stopped
 
+        # ======================================================================
+        # FlareSolverr — bypasses Cloudflare protection for Prowlarr indexers
+        # ======================================================================
+        flaresolverr:
+          image: ghcr.io/flaresolverr/flaresolverr:latest
+          container_name: flaresolverr
+          environment:
+            - LOG_LEVEL=info
+            - TZ=America/Los_Angeles
+          ports:
+            - "8191:8191"
+          restart: unless-stopped
+
   - path: /opt/acquisition/backup.sh
     permissions: '0755'
     content: |
@@ -156,8 +169,9 @@ runcmd:
   # Enable Docker
   - systemctl enable --now docker
 
-  # Create appdata directories for bind mounts
+  # Create appdata directories for bind mounts (owned by PUID 1000 so containers can write)
   - mkdir -p /opt/acquisition/appdata/{gluetun,qbittorrent,prowlarr,sonarr,radarr,jellyseerr,recyclarr}
+  - chown -R 1000:1000 /opt/acquisition/appdata
 
   # Create the shared storage directory structure
   - mkdir -p /mnt/storage/media/movies

@@ -10,7 +10,8 @@
 #   - Prowlarr     (indexer sync)
 #   - Sonarr       (TV manager)
 #   - Radarr       (movie manager)
-#   - Overseerr    (request portal for friends)
+#   - Jellyseerr   (request portal for friends)
+#   - FlareSolverr (Cloudflare bypass proxy for Prowlarr)
 #
 # Storage layout inside the VM:
 #   /mnt/storage/media/movies/       ← Radarr hardlinks finished movies
