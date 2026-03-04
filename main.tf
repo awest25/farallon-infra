@@ -46,6 +46,36 @@ data "external" "lxc_template" {
 
 locals {
   lxc_template_id = "local:vztmpl/${data.external.lxc_template.result.template}"
+  public_hostname = "${var.duckdns_domain}.duckdns.org"
+}
+
+# --- DuckDNS Auto-Update on Proxmox Host -------------------------------------
+# Keeps the DuckDNS record pointed at the current public IP so the infra
+# survives ISP IP changes without manual intervention.
+resource "null_resource" "duckdns_setup" {
+  connection {
+    type         = "ssh"
+    host         = var.proxmox_host_ip
+    user         = "root"
+    agent        = true
+    bastion_host = local.public_hostname
+    bastion_port = 52222
+    bastion_user = "root"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      # Create the update script
+      "cat > /usr/local/bin/duckdns-update.sh << 'SCRIPT'\n#!/bin/bash\ncurl -s \"https://www.duckdns.org/update?domains=${var.duckdns_domain}&token=${var.duckdns_token}&ip=\" -o /tmp/duckdns-update.log\nSCRIPT",
+      "chmod +x /usr/local/bin/duckdns-update.sh",
+
+      # Run immediately to ensure the record is current
+      "/usr/local/bin/duckdns-update.sh",
+
+      # Install cron job (every 5 minutes)
+      "echo '*/5 * * * * root /usr/local/bin/duckdns-update.sh' > /etc/cron.d/duckdns",
+    ]
+  }
 }
 
 # --- NFS Server on Proxmox Host -----------------------------------------------
@@ -57,7 +87,7 @@ resource "null_resource" "nfs_server_setup" {
     host         = var.proxmox_host_ip
     user         = "root"
     agent        = true
-    bastion_host = "98.51.110.156"
+    bastion_host = local.public_hostname
     bastion_port = 52222
     bastion_user = "root"
   }

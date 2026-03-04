@@ -102,7 +102,7 @@ resource "null_resource" "acquisition_setup" {
     host         = var.acquisition_ip
     user         = "ubuntu"
     agent        = true
-    bastion_host = "98.51.110.156"
+    bastion_host = local.public_hostname
     bastion_port = 52222
     bastion_user = "root"
   }

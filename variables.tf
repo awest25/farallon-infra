@@ -113,3 +113,18 @@ variable "npm_admin_password" {
   type        = string
   sensitive   = true
 }
+
+# ==============================================================================
+# DuckDNS (dynamic DNS)
+# ==============================================================================
+variable "duckdns_token" {
+  description = "DuckDNS API token for dynamic DNS updates"
+  type        = string
+  sensitive   = true
+}
+
+variable "duckdns_domain" {
+  description = "DuckDNS subdomain (without .duckdns.org suffix)"
+  type        = string
+  default     = "farallon-sf"
+}

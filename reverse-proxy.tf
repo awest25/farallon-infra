@@ -80,7 +80,7 @@ resource "null_resource" "reverse_proxy_setup" {
     host         = var.proxmox_host_ip
     user         = "root"
     agent        = true
-    bastion_host = "98.51.110.156"
+    bastion_host = local.public_hostname
     bastion_port = 52222
     bastion_user = "root"
   }
@@ -161,7 +161,7 @@ resource "null_resource" "npm_proxy_setup" {
     host         = var.proxmox_host_ip
     user         = "root"
     agent        = true
-    bastion_host = "98.51.110.156"
+    bastion_host = local.public_hostname
     bastion_port = 52222
     bastion_user = "root"
   }

@@ -29,7 +29,7 @@ write_files:
             - PUID=1000
             - PGID=1000
             - TZ=Etc/UTC
-            - SERVERURL=98.51.110.156
+            - SERVERURL=${server_url}
             - PEERS=1
             - PEERDNS=1.1.1.1
             - INTERNAL_SUBNET=10.13.13.0

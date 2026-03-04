@@ -9,8 +9,11 @@ resource "proxmox_virtual_environment_file" "wireguard_cloud_init" {
   datastore_id = "local"
   node_name    = var.target_node
 
-  source_file {
-    path = "${path.module}/cloud-init/wireguard.yml"
+  source_raw {
+    data = templatefile("${path.module}/cloud-init/wireguard.yml", {
+      server_url = local.public_hostname
+    })
+    file_name = "wireguard.yml"
   }
 }
 
@@ -82,7 +85,7 @@ resource "null_resource" "wireguard_setup" {
     host         = var.wireguard_ip
     user         = "ubuntu"
     agent        = true
-    bastion_host = "98.51.110.156"
+    bastion_host = local.public_hostname
     bastion_port = 52222
     bastion_user = "root"
   }

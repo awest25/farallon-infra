@@ -6,7 +6,7 @@
 graph TB
     CLIENT["Clients"]
     MULLVAD["Mullvad VPN"]
-    ROUTER["Router<br/>98.51.110.156"]
+    ROUTER["Router<br/>farallon-sf.duckdns.org"]
 
     CLIENT -->|"TCP 80/443"| ROUTER
     CLIENT -->|"UDP 51820"| ROUTER
@@ -99,7 +99,7 @@ graph TB
 | Jellyfin           | LXC  | 10.0.0.33    | 8096                     |
 | Acquisition        | VM   | 10.0.0.34    | 8989, 7878, 9696, 8080, 5055, 8191 |
 
-Public IP: 98.51.110.156
+Public hostname: farallon-sf.duckdns.org (dynamic IP, auto-updated every 5 min via cron on Proxmox host)
 Router port-forwards: TCP 80+443 to 10.0.0.136, UDP 51820 to 10.0.0.116, TCP 52222 to 10.0.0.32:22
 
 ### Services
@@ -180,8 +180,8 @@ Deployment works remotely (not on LAN) via SSH tunnels through the public IP.
 1. SSH agent loaded with key: `ssh-add ~/.ssh/id_ed25519`
 2. SSH tunnels running:
    ```bash
-   ssh -p 52222 root@98.51.110.156 -L 8006:10.0.0.32:8006 -N -f
-   ssh -p 52222 root@98.51.110.156 -L 10022:10.0.0.32:22 -N -f
+   ssh -p 52222 root@farallon-sf.duckdns.org -L 8006:10.0.0.32:8006 -N -f
+   ssh -p 52222 root@farallon-sf.duckdns.org -L 10022:10.0.0.32:22 -N -f
    ```
 3. `terraform.tfvars` has `proxmox_api_url = "https://127.0.0.1:8006/"`
 
@@ -192,9 +192,9 @@ tofu destroy   # optional, if rebuilding from scratch
 tofu apply
 ```
 
-Connection blocks in all .tf files use bastion settings (`98.51.110.156:52222`)
-to reach internal IPs. The bpg/proxmox provider uses the SSH node override
-(`127.0.0.1:10022`) for provider-level SSH operations.
+Connection blocks in all .tf files use bastion settings (`local.public_hostname:52222`,
+resolved from DuckDNS) to reach internal IPs. The bpg/proxmox provider uses the
+SSH node override (`127.0.0.1:10022`) for provider-level SSH operations.
 
 ---
 
