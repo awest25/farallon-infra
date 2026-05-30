@@ -106,7 +106,8 @@ Router port-forwards: TCP 80+443 to 10.0.0.136, UDP 51820 to 10.0.0.116, TCP 522
 
 | Service      | Container        | Purpose                                      |
 |--------------|------------------|----------------------------------------------|
-| Gluetun      | gluetun          | VPN gateway (Mullvad WireGuard). All torrent traffic exits through this. |
+| Dashboard    | dashboard        | Personal site + live directory/status (Next.js). Served at the apex domain. Own compose unit at `/opt/acquisition/dashboard`. |
+| Gluetun      | gluetun          | VPN gateway (Mullvad WireGuard). All torrent traffic exits through this. Control server on `:8000` (API-key auth via `appdata/gluetun/auth/config.toml`) feeds VPN status to the dashboard. |
 | qBittorrent  | qbittorrent      | Torrent client, network-bound to Gluetun (kill switch). |
 | Prowlarr     | prowlarr         | Indexer manager. Syncs trackers to Sonarr/Radarr. |
 | Sonarr       | sonarr           | TV show manager. Monitors, grabs, renames.   |
@@ -123,6 +124,7 @@ Router port-forwards: TCP 80+443 to 10.0.0.136, UDP 51820 to 10.0.0.116, TCP 522
 
 | Subdomain                      | Backend              |
 |--------------------------------|----------------------|
+| alexanderwest.com (+ www)      | 10.0.0.34:3000 (dashboard) |
 | jellyfin.alexanderwest.com     | 10.0.0.33:8096       |
 | requests.alexanderwest.com     | 10.0.0.34:5055       |
 | sonarr.alexanderwest.com       | 10.0.0.34:8989       |
@@ -272,6 +274,10 @@ Add Sonarr/Radarr base URLs and API keys. Recyclarr syncs quality profiles daily
     radarr/
     jellyseerr/
     recyclarr/
+    gluetun/auth/config.toml   # gluetun control-server API key (dashboard reads VPN status)
+  dashboard/                   # Personal site / status dashboard (Next.js, own compose unit)
+    dashboard.env              # Runtime config: service URLs + *arr API keys + gluetun key (deploy-dashboard.sh)
+    docker-compose.yml         # Builds + runs the dashboard image on the VM
 
 /mnt/storage/                # NFS mount from Proxmox host
   media/movies/
@@ -313,13 +319,29 @@ Jellyfin runs natively (not Docker). Storage bind-mounted from Proxmox host at `
 
 ---
 
+## Personal Site & Status Dashboard
+
+`https://alexanderwest.com` serves a Next.js app (`dashboard/` in the repo):
+
+- **`/`** — personal landing page (name, blog placeholder, link to the directory).
+- **`/directory`** — every self-hosted app with a plain-English description, link, and live online/offline badge, plus a **System Health** strip: VPN exit IP/country, Mullvad days-to-expiry, storage usage, last-backup age, and *arr/indexer health. Turns red if anything critical fails.
+- **`/api/status`** — server-side health collector. API keys live only on the server (in `dashboard.env`); the browser only ever sees booleans + safe display strings.
+
+Deploy is encoded in `acquisition.tf` (`null_resource.dashboard_deploy`) + `scripts/deploy-dashboard.sh`: it ships the source, writes `dashboard.env` (pulling the live *arr API keys + the gluetun control-server key), and builds the image on the VM. It rebuilds automatically when the source changes.
+
+**Mullvad expiry reminder:** set `mullvad_account_number` in `terraform.tfvars` (or `MULLVAD_ACCOUNT_NUMBER` in `dashboard.env`) and the dashboard shows days-until-expiry so the subscription can't lapse silently again.
+
 ## Remaining TODO
 
-- [x] SSL certificates on all proxy hosts (automated via setup-npm.sh)
+- [x] SSL certificates on all proxy hosts (automated via setup-npm.sh) — incl. apex + www
 - [x] Wire up Prowlarr > Sonarr/Radarr > qBittorrent > Jellyseerr
 - [x] Configure Recyclarr with API keys and quality profiles (WEB-1080p for Sonarr, Remux + WEB 1080p for Radarr)
-- [ ] Change NPM admin password
+- [x] Personal site + live status dashboard at the apex domain
+- [x] qBittorrent waits for a healthy VPN (`depends_on: service_healthy`); gluetun control API exposed for monitoring
+- [x] NPM admin password reset to the IaC default (`changeme123!`) — **change this to something strong**
 - [ ] Change qBittorrent default password
 - [ ] Enable auth on Sonarr/Radarr/Prowlarr
-- [ ] Restrict Sonarr/Radarr/Prowlarr/qBit proxy hosts to VPN-only access
+- [ ] Restrict Sonarr/Radarr/Prowlarr/qBit proxy hosts to VPN-only access (currently internet-discoverable)
 - [ ] CrowdSec bouncer integration
+- [ ] Indexer coverage is thin — only The Pirate Bay is active (EZTV disabled as it was failing; 1337x disabled). Add/repair indexers in Prowlarr.
+- [ ] Set `mullvad_account_number` to enable the dashboard's expiry reminder

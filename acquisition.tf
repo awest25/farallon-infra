@@ -134,3 +134,60 @@ resource "null_resource" "acquisition_setup" {
     ]
   }
 }
+
+# --- Personal dashboard: landing page + live directory/status ----------------
+# Next.js app shipped as source and built on the VM (amd64). Reads service
+# health over the LAN and VPN status from gluetun's control API. Rebuilds
+# automatically whenever the dashboard source or deploy script changes.
+resource "null_resource" "dashboard_deploy" {
+  depends_on = [null_resource.acquisition_setup]
+
+  triggers = {
+    src_hash = sha1(join(",", [
+      for f in fileset("${path.module}/dashboard", "{src/**,public/**,package.json,package-lock.json,Dockerfile,docker-compose.yml,next.config.ts,tsconfig.json,components.json,postcss.config.mjs,eslint.config.mjs,.dockerignore}") :
+      filesha1("${path.module}/dashboard/${f}")
+    ]))
+    deploy_script   = filesha1("${path.module}/scripts/deploy-dashboard.sh")
+    mullvad_account = var.mullvad_account_number
+  }
+
+  connection {
+    type         = "ssh"
+    host         = var.acquisition_ip
+    user         = "ubuntu"
+    agent        = true
+    bastion_host = local.public_hostname
+    bastion_port = 52222
+    bastion_user = "root"
+  }
+
+  # Tar the source (excluding heavy/secret files) and ship it.
+  provisioner "local-exec" {
+    command = "cd ${path.module}/dashboard && COPYFILE_DISABLE=1 tar czf /tmp/farallon-dashboard.tgz --exclude=./node_modules --exclude=./.next --exclude=./.env.local --exclude=./.git --exclude=./dashboard.env ."
+  }
+  provisioner "file" {
+    source      = "/tmp/farallon-dashboard.tgz"
+    destination = "/tmp/farallon-dashboard.tgz"
+  }
+
+  # Render the deploy script with Terraform values.
+  provisioner "file" {
+    content = templatefile("${path.module}/scripts/deploy-dashboard.sh", {
+      domain                 = var.domain
+      jellyfin_ip            = var.jellyfin_ip
+      acquisition_ip         = var.acquisition_ip
+      mullvad_account_number = var.mullvad_account_number
+    })
+    destination = "/tmp/deploy-dashboard.sh"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "sudo mkdir -p /opt/acquisition/dashboard",
+      "sudo tar xzf /tmp/farallon-dashboard.tgz -C /opt/acquisition/dashboard",
+      "sudo chown -R ubuntu:ubuntu /opt/acquisition/dashboard",
+      "bash /tmp/deploy-dashboard.sh",
+      "rm -f /tmp/deploy-dashboard.sh /tmp/farallon-dashboard.tgz",
+    ]
+  }
+}

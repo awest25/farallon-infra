@@ -37,6 +37,9 @@ write_files:
           ports:
             # qBittorrent WebUI — exposed through Gluetun
             - "8080:8080"
+            # Gluetun control server (API-key protected via auth/config.toml) —
+            # the dashboard reads VPN exit IP / health from here.
+            - "8000:8000"
           volumes:
             - /opt/acquisition/appdata/gluetun:/gluetun
           restart: unless-stopped
@@ -48,8 +51,11 @@ write_files:
           image: lscr.io/linuxserver/qbittorrent:latest
           container_name: qbittorrent
           network_mode: "service:gluetun"
+          # Wait for the VPN to pass its healthcheck before starting, so the
+          # downloader never comes up bound to a dead tunnel.
           depends_on:
-            - gluetun
+            gluetun:
+              condition: service_healthy
           environment:
             - PUID=1000
             - PGID=1000

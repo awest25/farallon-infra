@@ -1,0 +1,18 @@
+# Dashboard runs as its own compose unit on the acquisition VM. Kept separate
+# from the media stack so a source/build change never disrupts downloads, and so
+# cloud-init's first boot never tries to build before the source is shipped.
+#
+# Built on the VM (amd64) from this directory. Reaches the other services over
+# the LAN by host IP; mounts /mnt/storage read-only for disk/backup checks.
+services:
+  dashboard:
+    build:
+      context: .
+    image: farallon-dashboard:latest
+    container_name: dashboard
+    env_file: dashboard.env
+    volumes:
+      - /mnt/storage:/mnt/storage:ro
+    ports:
+      - "3000:3000"
+    restart: unless-stopped

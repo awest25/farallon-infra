@@ -25,8 +25,9 @@ output "acquisition_ip" {
 output "service_urls" {
   description = "Direct LAN URLs for all services"
   value = {
+    dashboard   = "http://${var.acquisition_ip}:3000"
     jellyfin    = "http://${var.jellyfin_ip}:8096"
-    jellyseerr   = "http://${var.acquisition_ip}:5055"
+    jellyseerr  = "http://${var.acquisition_ip}:5055"
     sonarr      = "http://${var.acquisition_ip}:8989"
     radarr      = "http://${var.acquisition_ip}:7878"
     prowlarr    = "http://${var.acquisition_ip}:9696"
@@ -34,9 +35,16 @@ output "service_urls" {
   }
 }
 
+output "site" {
+  description = "Public personal site + directory dashboard"
+  value       = "https://${var.domain} (and https://www.${var.domain})"
+}
+
 output "proxy_hosts" {
   description = "NPM proxy host subdomains (configured automatically)"
   value = {
+    site     = var.domain
+    www      = "www.${var.domain}"
     jellyfin = "jellyfin.${var.domain}"
     requests = "requests.${var.domain}"
     sonarr   = "sonarr.${var.domain}"

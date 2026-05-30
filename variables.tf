@@ -99,6 +99,13 @@ variable "mullvad_wireguard_addresses" {
   default     = ""
 }
 
+variable "mullvad_account_number" {
+  description = "Mullvad account number (optional) — lets the dashboard show days-until-expiry so the subscription never lapses silently"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 # ==============================================================================
 # Domain & Reverse Proxy
 # ==============================================================================
