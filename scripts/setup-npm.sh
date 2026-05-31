@@ -80,6 +80,7 @@ echo "Ensuring proxy hosts exist..."
 # Apex + www → personal site / directory dashboard (Next.js on the acquisition VM)
 create_proxy "${domain}"           "${acquisition_ip}"  3000
 create_proxy "www.${domain}"       "${acquisition_ip}"  3000
+create_proxy "blog.${domain}"      "${acquisition_ip}"  3001
 create_proxy "jellyfin.${domain}"  "${jellyfin_ip}"     8096
 create_proxy "requests.${domain}"  "${acquisition_ip}"  5055
 create_proxy "sonarr.${domain}"    "${acquisition_ip}"  8989

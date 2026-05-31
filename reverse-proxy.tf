@@ -154,6 +154,9 @@ resource "null_resource" "npm_proxy_setup" {
       jellyfin_ip    = var.jellyfin_ip
       acquisition_ip = var.acquisition_ip
     })
+    # Re-run the (idempotent) NPM setup whenever the proxy/cert list changes —
+    # e.g. adding the blog host. Mirrors how dashboard_deploy tracks its script.
+    setup_script = filesha1("${path.module}/scripts/setup-npm.sh")
   }
 
   connection {

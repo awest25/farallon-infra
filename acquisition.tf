@@ -191,3 +191,57 @@ resource "null_resource" "dashboard_deploy" {
     ]
   }
 }
+
+# --- Personal blog: Astro + Markdoc + Keystatic ------------------------------
+# Standalone repo (var.blog_repo_url) cloned + built on the VM, served on :3001
+# and proxied at blog.${domain} by NPM. A cron pull-and-build publishes Keystatic
+# commits (including phone edits) without a terraform apply. Created only once
+# var.blog_repo_url is set — leave it empty to skip the blog entirely.
+resource "null_resource" "blog_deploy" {
+  count      = var.blog_repo_url == "" ? 0 : 1
+  depends_on = [null_resource.acquisition_setup]
+
+  triggers = {
+    deploy_script = filesha1("${path.module}/scripts/deploy-blog.sh")
+    cron_script   = filesha1("${path.module}/scripts/blog-pull-and-build.sh")
+    repo_url      = var.blog_repo_url
+    ks_repo       = var.keystatic_github_repo
+    ks_client_id  = var.keystatic_github_client_id
+    ks_secret     = sha1(var.keystatic_secret)
+  }
+
+  connection {
+    type         = "ssh"
+    host         = var.acquisition_ip
+    user         = "ubuntu"
+    agent        = true
+    bastion_host = local.public_hostname
+    bastion_port = 52222
+    bastion_user = "root"
+  }
+
+  # Ship the (untemplated) cron script and the rendered deploy script.
+  provisioner "file" {
+    source      = "${path.module}/scripts/blog-pull-and-build.sh"
+    destination = "/tmp/blog-pull-and-build.sh"
+  }
+
+  provisioner "file" {
+    content = templatefile("${path.module}/scripts/deploy-blog.sh", {
+      blog_repo_url                  = var.blog_repo_url
+      keystatic_github_repo          = var.keystatic_github_repo
+      keystatic_github_client_id     = var.keystatic_github_client_id
+      keystatic_github_client_secret = var.keystatic_github_client_secret
+      keystatic_secret               = var.keystatic_secret
+      keystatic_github_app_slug      = var.keystatic_github_app_slug
+    })
+    destination = "/tmp/deploy-blog.sh"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "bash /tmp/deploy-blog.sh",
+      "rm -f /tmp/deploy-blog.sh /tmp/blog-pull-and-build.sh",
+    ]
+  }
+}

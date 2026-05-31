@@ -135,3 +135,49 @@ variable "duckdns_domain" {
   type        = string
   default     = "farallon-sf"
 }
+
+# ==============================================================================
+# Blog (Astro + Keystatic, served at blog.<domain>)
+# ==============================================================================
+# The blog is a standalone repo cloned + built on the acquisition VM. Leave
+# blog_repo_url empty to skip the blog deployment entirely (the null_resource is
+# count-gated on it). Keystatic GitHub-mode secrets come from a GitHub App you
+# create once (see the blog repo's README).
+variable "blog_repo_url" {
+  description = "HTTPS git URL of the standalone blog repo (e.g. https://github.com/<owner>/blog.git). Empty disables blog deployment."
+  type        = string
+  default     = ""
+}
+
+variable "keystatic_github_repo" {
+  description = "owner/name of the blog repo, for Keystatic GitHub storage mode"
+  type        = string
+  default     = ""
+}
+
+variable "keystatic_github_client_id" {
+  description = "Keystatic GitHub App client ID"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "keystatic_github_client_secret" {
+  description = "Keystatic GitHub App client secret"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "keystatic_secret" {
+  description = "Keystatic session secret (64-char random hex)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "keystatic_github_app_slug" {
+  description = "Keystatic GitHub App slug (PUBLIC_KEYSTATIC_GITHUB_APP_SLUG)"
+  type        = string
+  default     = ""
+}
