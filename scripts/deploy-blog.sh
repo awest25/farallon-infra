@@ -40,6 +40,11 @@ PUBLIC_KEYSTATIC_GITHUB_APP_SLUG=${keystatic_github_app_slug}
 EOF
 chmod 600 "$REPO_DIR/blog.env"
 
+# --- build-time public var (docker compose auto-reads .env for ${...} subs) ---
+# PUBLIC_ Astro vars are inlined at build, so the slug must be a build arg, not
+# just runtime env. Not secret. Persists across the cron's rebuilds.
+printf 'PUBLIC_KEYSTATIC_GITHUB_APP_SLUG=%s\n' "${keystatic_github_app_slug}" > "$REPO_DIR/.env"
+
 # --- build + start ------------------------------------------------------------
 cd "$REPO_DIR" && sudo docker compose up -d --build
 
