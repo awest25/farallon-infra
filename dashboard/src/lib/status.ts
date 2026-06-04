@@ -6,6 +6,7 @@
 
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { DEFAULT_DISK_WARN_PCT } from "./constants";
 import type {
   ServiceStatus,
   VpnStatus,
@@ -39,18 +40,28 @@ const GLUETUN_URL = env("GLUETUN_URL", "http://10.0.0.34:8000");
 const GLUETUN_API_KEY = env("GLUETUN_API_KEY");
 const MULLVAD_ACCOUNT = env("MULLVAD_ACCOUNT_NUMBER");
 const STORAGE_PATH = env("STORAGE_PATH", "/mnt/storage");
-const DISK_WARN_PCT = Number(env("DISK_WARN_PCT", "92"));
+const DISK_WARN_PCT = Number(env("DISK_WARN_PCT", String(DEFAULT_DISK_WARN_PCT)));
 
 const TIMEOUT_MS = 4000;
+const MULLVAD_TIMEOUT_MS = 6000;
+const MS_PER_HOUR = 3_600_000;
+const MS_PER_DAY = 86_400_000;
+const BYTES_PER_GB = 1e9;
 
 async function fetchT(
   url: string,
   init: (RequestInit & { timeout?: number }) | undefined = undefined,
 ) {
+  // Pull `timeout` out so the non-standard field isn't spread into fetch().
+  const { timeout = TIMEOUT_MS, ...requestInit } = init ?? {};
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), init?.timeout ?? TIMEOUT_MS);
+  const timer = setTimeout(() => ctrl.abort(), timeout);
   try {
-    return await fetch(url, { ...init, signal: ctrl.signal, cache: "no-store" });
+    return await fetch(url, {
+      ...requestInit,
+      signal: ctrl.signal,
+      cache: "no-store",
+    });
   } finally {
     clearTimeout(timer);
   }
@@ -119,13 +130,13 @@ async function checkMullvad(): Promise<MullvadStatus> {
   try {
     const res = await fetchT(
       `https://api.mullvad.net/public/accounts/v1/${MULLVAD_ACCOUNT}/`,
-      { timeout: 6000 },
+      { timeout: MULLVAD_TIMEOUT_MS },
     );
     if (!res.ok) return { known: false };
     const d = (await res.json()) as { expiry?: string };
     if (!d.expiry) return { known: false };
     const daysLeft = Math.floor(
-      (new Date(d.expiry).getTime() - Date.now()) / 86_400_000,
+      (new Date(d.expiry).getTime() - Date.now()) / MS_PER_DAY,
     );
     return { known: true, expires: d.expiry, daysLeft };
   } catch {
@@ -154,7 +165,7 @@ async function checkStorage(): Promise<StorageStatus> {
       }
       if (newest) {
         lastBackup = new Date(newest).toISOString();
-        lastBackupAgeHours = Math.round((Date.now() - newest) / 3_600_000);
+        lastBackupAgeHours = Math.round((Date.now() - newest) / MS_PER_HOUR);
       }
     } catch {
       // backups dir not mounted / not present — leave undefined
@@ -163,8 +174,8 @@ async function checkStorage(): Promise<StorageStatus> {
     return {
       known: true,
       usedPct,
-      freeGb: Math.round(free / 1e9),
-      totalGb: Math.round(total / 1e9),
+      freeGb: Math.round(free / BYTES_PER_GB),
+      totalGb: Math.round(total / BYTES_PER_GB),
       lastBackup,
       lastBackupAgeHours,
     };

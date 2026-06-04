@@ -7,6 +7,7 @@ import { SystemHealth } from "@/components/system-health";
 import { cn } from "@/lib/utils";
 import { useStatus } from "@/lib/use-status";
 import { APPS, CATEGORY_ORDER, type AppDef } from "@/lib/apps";
+import { DEFAULT_DISK_WARN_PCT } from "@/lib/constants";
 import type { Health, ServiceStatus } from "@/lib/types";
 
 function problems(
@@ -19,7 +20,8 @@ function problems(
   if (vpnDown) out.push("VPN tunnel is down — downloads are blocked");
   const offline = services.filter((s) => s.health === "down").map((s) => s.id);
   if (offline.length) out.push(`Offline: ${offline.join(", ")}`);
-  if (diskPct !== undefined && diskPct >= 92) out.push(`Storage ${diskPct}% full`);
+  if (diskPct !== undefined && diskPct >= DEFAULT_DISK_WARN_PCT)
+    out.push(`Storage ${diskPct}% full`);
   if (errors > 0) out.push(`${errors} automation error${errors > 1 ? "s" : ""}`);
   return out;
 }

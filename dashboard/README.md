@@ -1,36 +1,35 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Dashboard
 
-## Getting Started
+Personal landing page + live status board for the Farallon home lab, served at
+the apex domain. Built with Next.js (App Router) + Tailwind. Part of the
+[farallon-infra](../) repo; see [OPERATIONS.md](../OPERATIONS.md) for how it is
+deployed onto the acquisition VM.
 
-First, run the development server:
+## Routes
+
+- `/` — personal landing page.
+- `/directory` — every self-hosted app with a plain-English description, a link,
+  and a live online/offline badge, plus a **System Health** strip (VPN exit
+  IP/country, Mullvad days-to-expiry, storage usage, last-backup age, *arr
+  health).
+- `/api/status` — server-side health collector. API keys live only on the
+  server (`src/lib/status.ts`); the browser only ever receives booleans + safe
+  display strings.
+
+## Local development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local   # then fill in service URLs / keys as needed
+npm install
+npm run dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`npm run build` produces a standalone server bundle; `npm run lint` runs ESLint.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Configuration
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+All runtime config is environment-driven — see [.env.example](.env.example).
+In production these values are injected by Terraform into `dashboard.env`
+(see `scripts/deploy-dashboard.sh`), which pulls the live *arr API keys and the
+gluetun control-server key off the VM. Every value falls back to a sensible LAN
+default so the app runs locally with no setup.

@@ -2,6 +2,7 @@ import { Activity, CalendarClock, Clock, HardDrive, Shield } from "lucide-react"
 import type { LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { DEFAULT_DISK_WARN_PCT } from "@/lib/constants";
 import type { StatusReport } from "@/lib/types";
 
 type Tone = "ok" | "warn" | "bad" | "muted";
@@ -12,6 +13,13 @@ const TONE: Record<Tone, string> = {
   bad: "text-red-500",
   muted: "text-muted-foreground",
 };
+
+// At-a-glance tone thresholds. Disk turns red at the shared DEFAULT_DISK_WARN_PCT.
+const MULLVAD_CRIT_DAYS = 2;
+const MULLVAD_WARN_DAYS = 7;
+const DISK_NEAR_FULL_PCT = 80;
+const BACKUP_OK_HOURS = 30;
+const BACKUP_WARN_HOURS = 50;
 
 function StatCard({
   icon: Icon,
@@ -72,9 +80,9 @@ export function SystemHealth({
   // Mullvad expiry
   const mTone: Tone = !mullvad.known
     ? "muted"
-    : (mullvad.daysLeft ?? 0) <= 2
+    : (mullvad.daysLeft ?? 0) <= MULLVAD_CRIT_DAYS
       ? "bad"
-      : (mullvad.daysLeft ?? 0) <= 7
+      : (mullvad.daysLeft ?? 0) <= MULLVAD_WARN_DAYS
         ? "warn"
         : "ok";
   const mValue = mullvad.known ? `${mullvad.daysLeft}d left` : "—";
@@ -88,9 +96,9 @@ export function SystemHealth({
   const dPct = storage.usedPct ?? 0;
   const dTone: Tone = !storage.known
     ? "muted"
-    : dPct >= 92
+    : dPct >= DEFAULT_DISK_WARN_PCT
       ? "bad"
-      : dPct >= 80
+      : dPct >= DISK_NEAR_FULL_PCT
         ? "warn"
         : "ok";
   const dValue = storage.known ? `${dPct}% used` : "—";
@@ -99,7 +107,13 @@ export function SystemHealth({
   // Backups
   const age = storage.lastBackupAgeHours;
   const bTone: Tone =
-    age === undefined ? "muted" : age <= 30 ? "ok" : age <= 50 ? "warn" : "bad";
+    age === undefined
+      ? "muted"
+      : age <= BACKUP_OK_HOURS
+        ? "ok"
+        : age <= BACKUP_WARN_HOURS
+          ? "warn"
+          : "bad";
   const bValue = age === undefined ? "—" : age < 1 ? "<1h ago" : `${age}h ago`;
   const bSub = storage.lastBackup
     ? `last ${new Date(storage.lastBackup).toLocaleDateString()}`

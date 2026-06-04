@@ -117,14 +117,16 @@ write_files:
           restart: unless-stopped
 
         # ======================================================================
-        # Jellyseerr — request portal for friends/family (Jellyfin-compatible)
+        # Seerr — request portal for friends/family (Jellyfin-compatible).
+        # Formerly Jellyseerr; the project unified into Seerr in 2026. Reuses the
+        # same /app/config volume and auto-migrates the existing database on first
+        # start. Runs as UID 1000 (appdata must be owned 1000:1000); needs init.
         # ======================================================================
         jellyseerr:
-          image: fallenbagel/jellyseerr:latest
+          image: ghcr.io/seerr-team/seerr:latest
           container_name: jellyseerr
+          init: true
           environment:
-            - PUID=1000
-            - PGID=1000
             - TZ=America/Los_Angeles
           volumes:
             - /opt/acquisition/appdata/jellyseerr:/app/config
@@ -189,10 +191,9 @@ runcmd:
   # Install daily backup cron (3:00 AM)
   - echo "0 3 * * * root /opt/acquisition/backup.sh" > /etc/cron.d/acquisition-backup
 
-  # Mount NFS from Proxmox host (ensure NFS is exported on the host)
-  # Uncomment and adjust once NFS is configured on your Proxmox host:
-  # - echo "${PROXMOX_HOST_IP}:${STORAGE_HOST_PATH} /mnt/storage nfs defaults,_netdev 0 0" >> /etc/fstab
-  # - mount -a
+  # NFS (/mnt/storage) is mounted after boot by Terraform — see
+  # null_resource.acquisition_setup in acquisition.tf, which also writes the
+  # Mullvad .env, restores config from backup, and (re)starts the stack.
 
   # Start the acquisition stack
   - [ sh, -c, "cd /opt/acquisition && docker compose up -d" ]

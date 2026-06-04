@@ -22,7 +22,6 @@ ENV HOSTNAME=0.0.0.0
 # Run as an unprivileged user.
 RUN addgroup -g 1001 nodejs && adduser -u 1001 -G nodejs -S nextjs
 # Standalone output bundles only what the server needs.
-COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 USER nextjs
