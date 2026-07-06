@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { ArrowRight, PenLine } from "lucide-react";
+import { PenLine } from "lucide-react";
 
 // DECISION: keep the personal copy here as obvious, easily-editable placeholders
 // rather than inventing biography details. Swap the tagline/links when ready.
@@ -22,29 +21,16 @@ export default function Home() {
           </p>
         </div>
 
+        {/* DECISION: no link to /directory here — that page + its /api/status feed
+            are gated to LAN/VPN only (they expose VPN exit IP, Mullvad expiry,
+            storage/backup figures, *arr errors), so a public link would just 403.
+            Reach the directory directly by URL when on the LAN or WireGuard. */}
         <div className="flex flex-wrap items-center gap-3">
-          <Link
-            href="/directory"
-            className="group inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            Explore the directory
-            <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
-          </Link>
-
           <span className="inline-flex cursor-default items-center gap-2 rounded-lg border border-dashed px-5 py-2.5 text-sm text-muted-foreground">
             <PenLine className="size-4" />
             Blog — coming soon
           </span>
         </div>
-
-        <p className="text-sm text-muted-foreground">
-          The{" "}
-          <Link href="/directory" className="text-foreground underline underline-offset-4">
-            directory
-          </Link>{" "}
-          lists all my self-hosted apps, what each one is for, and whether it&apos;s
-          online right now.
-        </p>
       </div>
     </main>
   );

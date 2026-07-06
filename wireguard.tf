@@ -11,7 +11,9 @@ resource "proxmox_virtual_environment_file" "wireguard_cloud_init" {
 
   source_raw {
     data = templatefile("${path.module}/cloud-init/wireguard.yml", {
-      server_url = local.public_hostname
+      server_url       = local.public_hostname
+      domain           = var.domain
+      reverse_proxy_ip = var.reverse_proxy_ip
     })
     file_name = "wireguard.yml"
   }

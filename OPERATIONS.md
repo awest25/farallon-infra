@@ -122,15 +122,47 @@ Router port-forwards: TCP 80+443 to 10.0.0.136, UDP 51820 to 10.0.0.116, TCP 522
 
 ### Proxy Hosts (NPM)
 
-| Subdomain                      | Backend              |
-|--------------------------------|----------------------|
-| alexanderwest.com (+ www)      | 10.0.0.34:3000 (dashboard) |
-| jellyfin.alexanderwest.com     | 10.0.0.33:8096       |
-| requests.alexanderwest.com     | 10.0.0.34:5055       |
-| sonarr.alexanderwest.com       | 10.0.0.34:8989       |
-| radarr.alexanderwest.com       | 10.0.0.34:7878       |
-| prowlarr.alexanderwest.com     | 10.0.0.34:9696       |
-| qbit.alexanderwest.com         | 10.0.0.34:8080       |
+| Subdomain                      | Backend              | Access |
+|--------------------------------|----------------------|--------|
+| alexanderwest.com (+ www)      | 10.0.0.34:3000 (dashboard) | Public — except `/directory` + `/api/status` (LAN/VPN only) |
+| blog.alexanderwest.com         | 10.0.0.34:3001       | Public |
+| jellyfin.alexanderwest.com     | 10.0.0.33:8096       | Public (own login) |
+| requests.alexanderwest.com     | 10.0.0.34:5055       | Public (own login) |
+| sonarr.alexanderwest.com       | 10.0.0.34:8989       | **LAN/VPN only** |
+| radarr.alexanderwest.com       | 10.0.0.34:7878       | **LAN/VPN only** |
+| prowlarr.alexanderwest.com     | 10.0.0.34:9696       | **LAN/VPN only** |
+| qbit.alexanderwest.com         | 10.0.0.34:8080       | **LAN/VPN only** |
+
+**Access control.** `scripts/setup-npm.sh` defines a single NPM access list,
+`internal-only (LAN + WireGuard)`, that allows `10.0.0.0/24` (LAN) and
+`10.13.13.0/24` (WireGuard peers) and denies everyone else. It is applied
+host-wide to the four *arr/qbit panels, and per-location to the dashboard's
+`/directory` + `/api/status` (the homepage stays public). NPM places these rules
+inside the proxied `location` only, so Let's Encrypt renewal is unaffected.
+
+**Reaching the gated apps by domain (split-horizon DNS).** The allow-list only
+works if the request arrives at NPM from a `10.x` source. It does not by default:
+the router does **not** NAT-hairpin (hitting the public IP from inside times out),
+and the WireGuard endpoint shares the site's public IP (`98.207.116.44`), so
+`wg-quick`'s automatic endpoint-exclusion route sends `alexanderwest.com` traffic
+*out* the public path even while connected — so it was denied on both LAN and VPN.
+
+The fix is split-horizon DNS: the WireGuard container's built-in **CoreDNS**
+(configured in `cloud-init/wireguard.yml`) answers every `alexanderwest.com` name
+with the reverse proxy (`10.0.0.136`) for internal clients, while public DNS is
+untouched. Because the container uses host networking, CoreDNS serves both
+`10.13.13.1` (tunnel) and `10.0.0.116` (LAN). Ubuntu's `systemd-resolved` stub is
+disabled so CoreDNS can own `:53` (the image auto-disables CoreDNS otherwise).
+
+Two client-side settings make it live (cannot be done from the repo):
+- **VPN:** peers are now handed `DNS = 10.13.13.1`. Re-import the WireGuard config
+  (or set the client's DNS to `10.13.13.1`) so the tunnel uses CoreDNS.
+- **Home WiFi:** point the router's DHCP DNS at `10.0.0.116` (or add a router-level
+  DNS record `*.alexanderwest.com -> 10.0.0.136`). Without this, LAN clients still
+  resolve the public IP and can't hairpin.
+
+Fallback that always works on the tunnel without DNS changes: hit the LAN address
+directly, e.g. `http://10.0.0.34:8989` (sonarr) or `http://10.0.0.34:3000/directory`.
 
 ---
 
@@ -324,8 +356,8 @@ Jellyfin runs natively (not Docker). Storage bind-mounted from Proxmox host at `
 `https://alexanderwest.com` serves a Next.js app (`dashboard/` in the repo):
 
 - **`/`** — personal landing page (name, blog placeholder, link to the directory).
-- **`/directory`** — every self-hosted app with a plain-English description, link, and live online/offline badge, plus a **System Health** strip: VPN exit IP/country, Mullvad days-to-expiry, storage usage, last-backup age, and *arr/indexer health. Turns red if anything critical fails.
-- **`/api/status`** — server-side health collector. API keys live only on the server (in `dashboard.env`); the browser only ever sees booleans + safe display strings.
+- **`/directory`** — every self-hosted app with a plain-English description, link, and live online/offline badge, plus a **System Health** strip: VPN exit IP/country, Mullvad days-to-expiry, storage usage, last-backup age, and *arr/indexer health. Turns red if anything critical fails. **LAN/VPN only** (gated at NPM — see Proxy Hosts).
+- **`/api/status`** — server-side health collector. API keys live only on the server (in `dashboard.env`); the browser only ever sees booleans + safe display strings. Still **LAN/VPN only**, since those "safe" strings include the VPN exit IP, Mullvad expiry, disk/backup figures, and raw *arr error messages.
 
 Deploy is encoded in `acquisition.tf` (`null_resource.dashboard_deploy`) + `scripts/deploy-dashboard.sh`: it ships the source, writes `dashboard.env` (pulling the live *arr API keys + the gluetun control-server key), and builds the image on the VM. It rebuilds automatically when the source changes.
 
@@ -341,7 +373,7 @@ Deploy is encoded in `acquisition.tf` (`null_resource.dashboard_deploy`) + `scri
 - [x] NPM admin password reset to the IaC default (`changeme123!`) — **change this to something strong**
 - [ ] Change qBittorrent default password
 - [ ] Enable auth on Sonarr/Radarr/Prowlarr
-- [ ] Restrict Sonarr/Radarr/Prowlarr/qBit proxy hosts to VPN-only access (currently internet-discoverable)
+- [x] Restrict Sonarr/Radarr/Prowlarr/qBit proxy hosts + the dashboard's `/directory`+`/api/status` to LAN/VPN-only access (NPM access list in setup-npm.sh)
 - [ ] CrowdSec bouncer integration
 - [ ] Indexer coverage is thin — only The Pirate Bay is active (EZTV disabled as it was failing; 1337x disabled). Add/repair indexers in Prowlarr.
 - [ ] Set `mullvad_account_number` to enable the dashboard's expiry reminder
